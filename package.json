@@ -1,0 +1,20 @@
+{
+    "name": "funjs",
+    "version": "0.0.1",
+    "repository": "https://github.com/brainfucker/funjs.git",
+    "author": "Oleg Illarionov <oleg@illarionov.tech>",
+    "license": "MIT",
+    "main": "dist/src/index.js",
+    "files": [
+      "dist"
+    ],
+    "scripts": {
+      "build": "rm -fr dist && tsc --declaration",
+      "examples-counter": "node ./dist/examples/counter.js",
+      "release": "yarn build && yarn publish"
+    },
+    "devDependencies": {
+    },
+    "dependencies": {
+    }
+  }
