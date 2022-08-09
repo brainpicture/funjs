@@ -15,22 +15,62 @@ const nl = "\n";
 
 class Contract {
     private code:Codegen;
+    private $exporting = false
     constructor() {
         this.code = new Codegen()
-    }
-    
-    recvInternal(cb:(msgValue:Int, inMsgCell: Cell, inMsgBody: Slice) => void) {
+        let prototype = Object.getPrototypeOf(this)
+        let methods = Object.getOwnPropertyNames(prototype)
+        let toCall: Array<()=>void> = [];
+        let exportFunction:Function = () => {};
+        let hasExport = false
+        
+        methods.forEach(method => {
+            let oldMethod = prototype[method]
+            if (method === 'constructor') return
+            if (method === 'recvInternal') {
+                toCall.push(() => {
+                    let f = this.func((msgValue:Int, inMsgCell: Cell, inMsgBody: Slice) => {
+                        oldMethod.call(this, msgValue, inMsgCell, inMsgBody)
+                    }, {name: 'recv_internal'})
+            
+            
+                    let msgValue = new Int(32, true).init(this.code, 'msg_value')
+                    let inMsgFull = new Cell().init(this.code, 'in_msg_full')
+                    let inMsgValue = new Slice().init(this.code, 'in_msg_body')
+            
+                    f(msgValue, inMsgFull, inMsgValue)
+                })
+            } else if (method === '$export') {
+                exportFunction = oldMethod
+                hasExport = true
+            }
+            let newMethod = <ArgType extends FuncArguments, RetType extends ReturnArguments>(...args:ArgType):RetType => {
+                let opts:FuncOptions<ArgType> = {}
+                if (this.$exporting) {
+                    opts.export = [method, args]
+                }
+                let f = new Func<ArgType, RetType>(this.code, (...args:ArgType):RetType => {
+                    return oldMethod.apply(this, args)
+                }, opts).callable()
+                /*if (opts?.export) {
+                    let args = opts?.export[1]
+                    args.forEach(a => {
+                        a.init(this.code)
+                    })
+                    f.call(this, ...args)
+                }*/
 
-        let f = this.func((msgValue:Int, inMsgCell: Cell, inMsgBody: Slice) => {
-            cb(msgValue, inMsgCell, inMsgBody)
-        }, {name: 'recv_internal'})
+                return f(...args)
+            }
+            prototype[method] = newMethod
+        })
 
+        toCall.forEach(c => c())
 
-        let msgValue = new Int(32, true).init(this.code, 'msg_value')
-        let inMsgFull = new Cell().init(this.code, 'in_msg_full')
-        let inMsgValue = new Slice().init(this.code, 'in_msg_body')
-
-        f(msgValue, inMsgFull, inMsgValue) // need to call to generate code
+        if (hasExport) {
+            this.$exporting = true
+            exportFunction.apply(this)
+        }
     }
 
     getData():Data {
@@ -79,4 +119,6 @@ class Contract {
         return funCCode
     }
 }
-export { Contract, MsgValue, InMsgFull, InMsgBody, types }
+
+
+export { Contract, MsgValue, InMsgFull, InMsgBody, types, Cell, Slice, Int }

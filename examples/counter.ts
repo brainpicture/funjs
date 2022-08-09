@@ -1,35 +1,35 @@
-import { Contract, InMsgBody, InMsgFull, MsgValue, types } from "../src";
-import { Cell } from "../src/types/cell";
-import { Slice } from "../src/types/slice";
-import { Int } from "../src/types/int";
+import { Contract, Cell, Slice, Int } from "../src";
 
-let c = new Contract()
+class Counter extends Contract {
+    loadData():Int {
+        var ds = this.getData().beginParse()
+        return ds.loadUint(64)
+    }
 
-let loadData = c.func(():Int => {
-    var ds = c.getData().beginParse()
-    return ds.loadUint(64)
-}, {inline:true})
+    saveData(counter:Int) {
+        let cell = this.beginCell().storeUint(counter, 64).endCell()
+        this.setData(cell)
+    }
 
-let saveData = c.func((counter:Int) => {
-    let cell = c.beginCell().storeUint(counter, 64).endCell()
-    c.setData(cell)
-})
+    recvInternal(msgValue:Int, inMsgCell: Cell, inMsgBody: Slice) {
+        let op = inMsgBody.loadUint(32)
+        var counter = this.loadData()
+        op.equal(32).then(() => {
+            this.saveData(counter.plus(1))
+        }).else(() => {
+            this.throw(6)
+        })
+    }
 
-c.recvInternal((msgValue:Int, inMsgCell: Cell, inMsgBody: Slice) => {
-    let op = inMsgBody.loadUint(32)
-    var counter = loadData()
-    op.equal(32).then(() => {
-        saveData(counter.plus(1))
-    }).else(() => {
-        c.throw(6)
-    })
-})
+    counter() {
+        var counter = this.loadData()
+        return counter
+    }
 
-c.func(() => {
-    var counter = loadData()
-    return counter
-}, {
-    export: ['counter', []]
-})
+    $export() {
+        this.counter()
+    }
+}
 
-console.log(c.compile())
+let counter = new Counter()
+console.log(counter.compile())
